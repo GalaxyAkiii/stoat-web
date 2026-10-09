@@ -2,6 +2,7 @@ import { createEffect, createMemo } from "solid-js";
 
 import { useClientLifecycle } from "@revolt/client";
 import { State } from "@revolt/client/Controller";
+import { useDevice } from "@revolt/common";
 import { useState } from "@revolt/state";
 
 import {
@@ -20,6 +21,7 @@ import { legacyThemeUnsetShim } from "./legacyThemeGeneratorCode";
 export function LoadTheme() {
   const state = useState();
   const { lifecycle } = useClientLifecycle();
+  const { isIOSTouch } = useDevice();
 
   const bannerShown = createMemo(() =>
     [
@@ -65,9 +67,12 @@ export function LoadTheme() {
 
   //Set PWA theme color
   createEffect(() => {
+    // Include SHOWING so colours change as the slide starts, not after it ends
+    const isShown = (slideState?: SlideState) =>
+      slideState === SlideState.SHOWN || slideState === SlideState.SHOWING;
+
     const drawerShown =
-      state.appDrawer()?.state === SlideState.SHOWN ||
-      state.diagDrawer()?.state === SlideState.SHOWN;
+      isShown(state.appDrawer()?.state) || isShown(state.diagDrawer()?.state);
 
     const color =
       getCssProps()[
@@ -80,7 +85,28 @@ export function LoadTheme() {
 
     for (const meta of document.head.querySelectorAll("meta[name=theme-color]"))
       (meta as HTMLMetaElement).content = color;
+
+    // Match <html> background with bottom edge color for iOS safe-area sampling
+    const bottomColor =
+      getCssProps()[
+        drawerShown
+          ? "--md-sys-color-surface-container-lowest"
+          : "--md-sys-color-surface-container-high"
+      ];
+
+    document.documentElement.style.background = bottomColor;
+    document.body.style.background = bottomColor;
   });
+
+  // Set system color-scheme so iOS keyboard accessory bar matches theme
+  if (isIOSTouch) {
+    createEffect(() => {
+      document.documentElement.style.colorScheme = state.theme.activeTheme
+        .darkMode
+        ? "dark"
+        : "light";
+    });
+  }
 
   return <Masks />;
 }

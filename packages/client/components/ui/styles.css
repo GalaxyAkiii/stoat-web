@@ -16,6 +16,10 @@ body {
   font-family: var(--fonts-primary);
 }
 
+html {
+  background: #191919;
+}
+
 #root {
   position: fixed;
   top: env(safe-area-inset-top);
