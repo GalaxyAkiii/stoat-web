@@ -1,7 +1,13 @@
 import { t } from "@lingui/core/macro";
 import { useNavigate } from "@solidjs/router";
 import { detect } from "detect-browser";
-import { Accessor, Setter, createMemo, createSignal } from "solid-js";
+import {
+  Accessor,
+  Setter,
+  createMemo,
+  createSignal,
+  onCleanup,
+} from "solid-js";
 
 import { API, Client, ConnectionState, ProtocolV1 } from "stoat.js";
 
@@ -120,6 +126,13 @@ class Lifecycle {
 
     this.client = null!;
     this.reset();
+
+    window.addEventListener("online", this.onOnline);
+    document.addEventListener("visibilitychange", this.onVisibilityChange);
+    onCleanup(() => {
+      window.removeEventListener("online", this.onOnline);
+      document.removeEventListener("visibilitychange", this.onVisibilityChange);
+    });
   }
 
   private reset() {
@@ -383,6 +396,25 @@ class Lifecycle {
 
       //Temporary disconnect
       this.transition({ type: TransitionType.TemporaryFailure });
+    }
+  };
+
+  /** Reconnect as soon as the browser reports the network is back */
+  private onOnline = () => {
+    if (this.state() === State.Offline) {
+      this.transition({ type: TransitionType.DeviceOnline });
+    } else if (this.state() === State.Disconnected) {
+      this.transition({ type: TransitionType.Retry });
+    }
+  };
+
+  /** Skip the reconnect backoff when returning to the app, as mobile browsers suspend it in the background */
+  private onVisibilityChange = () => {
+    if (
+      document.visibilityState === "visible" &&
+      [State.Disconnected, State.Offline].includes(this.state())
+    ) {
+      this.transition({ type: TransitionType.Retry });
     }
   };
 
